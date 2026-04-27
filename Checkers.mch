@@ -98,11 +98,11 @@ OPERATIONS
             ((turn = white & toX = 8) or (turn = black & toX = 1))
         THEN
             board :=
-            ({mkPair(fromX, fromY)} <<| board) <+
+            (board - ({mkPair(fromX, fromY)} <| board)) \/
             {mkPair(toX, toY) |-> (turn |-> king)}
         ELSE
             board :=
-            ({mkPair(toX, toY)} <<| board) <+
+            (board - ({mkPair(fromX, fromY)} <| board)) \/
             {mkPair(toX, toY) |-> board(mkPair(fromX, fromY))}
         END
         
