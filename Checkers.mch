@@ -17,10 +17,8 @@ PROPERTIES
     playableBoard = {xx,yy | xx:1..8 & yy:1..8 & (xx+yy) mod 2 = 0} &
     whiteInit = {xx,yy | xx:1..3 & yy:1..8 & (xx+yy) mod 2 = 0} &
     blackInit = {xx,yy | xx:6..8 & yy:1..8 & (xx+yy) mod 2 = 0} &
-    
     mkPair = %(xx,yy) . (xx:INTEGER & yy:INTEGER | xx |-> yy) &
     absDiff = %(nn, mm) . (nn:INTEGER & mm:INTEGER | max({nn - mm, mm - nn})) &
-    
     opponent = {white |-> black, black |-> white}
 
 VARIABLES
@@ -41,7 +39,7 @@ INITIALISATION
     (whiteInit * {(white |-> man)}) \/ 
     (blackInit * {(black |-> man)})
     ||
-    turn := white
+    turn::PLAYER
     ||
     gameStatus := playing
     ||
