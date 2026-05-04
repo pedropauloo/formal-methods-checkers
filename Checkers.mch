@@ -12,7 +12,11 @@ CONSTANTS
     mkPair,
     absDiff,
     opponent,
-    turnToWon
+    turnToWon,
+
+    captureBoard,
+    drawBoard,
+    victoryBoard
     
 PROPERTIES
     playableBoard = {xx,yy | xx:1..8 & yy:1..8 & (xx+yy) mod 2 = 0} &
@@ -21,7 +25,27 @@ PROPERTIES
     mkPair = %(xx,yy) . (xx:INTEGER & yy:INTEGER | xx |-> yy) &
     absDiff = %(nn, mm) . (nn:INTEGER & mm:INTEGER | max({nn - mm, mm - nn})) &
     opponent = {white |-> black, black |-> white} &
-    turnToWon = {white |-> white_won, black |-> black_won}
+    turnToWon = {white |-> white_won, black |-> black_won} &
+
+    captureBoard = { // Testes de captura
+	    (3 |-> 3) |-> (black |-> man),
+    	(4 |-> 4) |-> (white |-> man),
+    	(4 |-> 8) |-> (black |-> man),
+    	(5 |-> 5) |-> (black |-> man),
+    	(5 |-> 7) |-> (black |-> man),
+    	(7 |-> 3) |-> (black |-> man),
+    	(7 |-> 5) |-> (black |-> man),
+    	(7 |-> 7) |-> (black |-> man)
+    } &
+    drawBoard = { // Teste empate (começando pelas brancas)
+        (2 |-> 2) |-> (black |-> man),
+        (3 |-> 3) |-> (white |-> man),
+        (4 |-> 4) |-> (black |-> man)
+    } &
+    victoryBoard = { // Testes de vitória
+        (4 |-> 4) |-> (black |-> man),
+        (5 |-> 5) |-> (white |-> man)
+    }   
     
 VARIABLES
     board,
@@ -45,9 +69,13 @@ INVARIANT
     )
     
 INITIALISATION
-    board := 
-    (whiteInit * {(white |-> man)}) \/ 
-    (blackInit * {(black |-> man)})
+    CHOICE board:=
+    	(whiteInit * {(white |-> man)}) \/ 
+    	(blackInit * {(black |-> man)})
+	    OR board := captureBoard
+    	OR board := drawBoard
+    	OR board := victoryBoard
+	END
     ||
     turn::PLAYER // Permite que qualquer jogador comece o jogo
     ||
@@ -225,19 +253,19 @@ OPERATIONS
             // Nenhuma das opções do THEN acima devem finalizar o jogo, pois há peças pra participar do combo
             SELECT board(mkPair(fromX, fromY)) = (turn |-> man) & ((turn = white & toX = 8) or (turn = black & toX = 1)) THEN // Só é possível escolher parar o combo quando há uma promoção no meio
                 // Promove para dama e encerra
-                board := ({mkPair(fromX, fromY), mkPair(capX, capY)} <<| board) \/ {mkPair(toX, toY) |-> (turn |-> king)}
-                || turn := opponent(turn)
+                turn := opponent(turn)
                 || comboPiece := {}
+                || board := ({mkPair(fromX, fromY), mkPair(capX, capY)} <<| board) \/ {mkPair(toX, toY) |-> (turn |-> king)}
             WHEN 1 = 1 THEN // Sempre é possível continuar o combo
                 // Desiste de virar dama e continua o combo
-                board := ({mkPair(fromX, fromY), mkPair(capX, capY)} <<| board) \/ {mkPair(toX, toY) |-> board(mkPair(fromX, fromY))}
-                || comboPiece := {mkPair(toX, toY)} // Tranca o turno na peça, negando virar dama para continuar o combo
+                comboPiece := {mkPair(toX, toY)} // Tranca o turno na peça, negando virar dama para continuar o combo
+                || board := ({mkPair(fromX, fromY), mkPair(capX, capY)} <<| board) \/ {mkPair(toX, toY) |-> board(mkPair(fromX, fromY))}
             END
         ELSE
             // As capturas que acontecem nessas condições podem finalizar o jogo
-            board := ({mkPair(fromX, fromY), mkPair(capX, capY)} <<| board) \/ {mkPair(toX, toY) |-> board(mkPair(fromX, fromY))}
-            || turn := opponent(turn) // Passa a vez e limpa a trava
+            turn := opponent(turn) // Passa a vez e limpa a trava
             || comboPiece := {}
+            || board := ({mkPair(fromX, fromY), mkPair(capX, capY)} <<| board) \/ {mkPair(toX, toY) |-> board(mkPair(fromX, fromY))}
             || IF card(board |> ({opponent(turn)} * TYPE)) - 1 = 0 THEN // Se após realizar essa operação o oponente fica sem peças
                    gameStatus := turnToWon(turn)
                ELSIF card(board |> ({turn} * TYPE)) = 1 & card(board |> ({opponent(turn)} * TYPE)) - 1 = 1 THEN // Após realizar essa operação ambos os jogadores ficam com 1 peça
