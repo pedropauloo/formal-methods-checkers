@@ -72,6 +72,7 @@ SETS
 CONSTANTS
     MIN_COORD,
     MAX_COORD,
+    MAX_MOVES,
     playableBoard,
     whiteInit,
     blackInit,
@@ -86,6 +87,7 @@ CONSTANTS
 PROPERTIES
     MIN_COORD = 1 &
     MAX_COORD = 8 &
+    MAX_MOVES = 32 &
     playableBoard = {posX, posY | posX:MIN_COORD..MAX_COORD & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)} &
     whiteInit = {posX, posY | posX:MIN_COORD..3 & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)} &
     blackInit = {posX, posY | posX:6..MAX_COORD & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)} &
@@ -285,17 +287,25 @@ OPERATIONS
     END;
 
     // Retorna TODAS as posições válidas de movimento para uma dada peça
-    validMoves <-- getPossibleMoves(fromX, fromY) =
+    validMoves, moveCount <-- getPossibleMoves(fromX, fromY) =
     PRE
         fromX: INTEGER & fromY: INTEGER & 
         IS_ON_BOARD(fromX, fromY) &
         mkPair(fromX, fromY) : dom(board) & // Pertencer ao tabuleiro garante estar numa casa escura
         board(mkPair(fromX, fromY)) : {turn} * TYPE
     THEN
-        validMoves := { destX, destY | 
-            destX: INTEGER & destY: INTEGER &
-            fromX |-> fromY |-> destX |-> destY : NORMAL_MOVES(board, turn) \/ CAPTURE_MOVES(board, turn)
-        }
+        ANY moves WHERE
+            moves = { destX, destY | 
+                destX: INTEGER & destY: INTEGER &
+                fromX |-> fromY |-> destX |-> destY : NORMAL_MOVES(board, turn) \/ CAPTURE_MOVES(board, turn)
+            } &
+            moves <: playableBoard &
+            card(moves) <= MAX_MOVES
+        THEN
+            moveCount := card(moves)
+            ||
+            validMoves :: 1..card(moves) >->> moves
+        END
     END;
     
     currentStatus <-- checkStatus=
