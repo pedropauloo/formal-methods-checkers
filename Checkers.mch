@@ -1,67 +1,6 @@
 MACHINE Checkers
     
-DEFINITIONS
-    // Checa se a peça está no tabuleiro
-    IS_ON_BOARD(posX, posY) == (posX: MIN_COORD..MAX_COORD & posY: MIN_COORD..MAX_COORD);
-    // Checa se a peça está numa casa preta
-    IS_BLACK_SQUARE(posX, posY) == ((posX+posY) mod 2 = 0);
-    
-    // Conjunto de casas na diagonal entre duas coordenadas 
-    DIAGONAL_PATH(startX, startY, endX, endY) == { pathX, pathY | 
-        pathX: INTEGER & pathY: INTEGER & 
-        IS_ON_BOARD(pathX, pathY) & 
-        min({startX, endX}) < pathX & pathX < max({startX, endX}) & 
-        min({startY, endY}) < pathY & pathY < max({startY, endY}) & 
-        absDiff(startX, pathX) = absDiff(startY, pathY)
-    };
-
-    // Movimentos válidos no tabuleiro 
-    NORMAL_MOVES(bState, player) == { nfX, nfY, ntX, ntY |
-        nfX: INTEGER & nfY: INTEGER & ntX: INTEGER & ntY: INTEGER & 
-        IS_ON_BOARD(nfX, nfY) & IS_ON_BOARD(ntX, ntY) &
-        mkPair(nfX, nfY) : dom(bState) & bState(mkPair(nfX, nfY)) : {player} * TYPE &
-        IS_BLACK_SQUARE(ntX, ntY) & mkPair(ntX, ntY) /: dom(bState) &
-        (
-            // Regra do Peão
-            (bState(mkPair(nfX, nfY)) = (player |-> man) & 
-             absDiff(nfX, ntX) = 1 & absDiff(nfY, ntY) = 1 & 
-             ((player = white & ntX = nfX + 1) or (player = black & ntX = nfX - 1)))
-            or
-            // Regra da Dama
-            (bState(mkPair(nfX, nfY)) = (player |-> king) & 
-             absDiff(nfX, ntX) = absDiff(nfY, ntY) & 
-             DIAGONAL_PATH(nfX, nfY, ntX, ntY) /\ dom(bState) = {}) // Caminho vazio
-        )
-    };
-
-    // Capturas válidas no tabuleiro 
-    CAPTURE_MOVES(bState, player) == { cfX, cfY, ctX, ctY |
-        cfX: INTEGER & cfY: INTEGER & ctX: INTEGER & ctY: INTEGER & 
-        IS_ON_BOARD(cfX, cfY) & IS_ON_BOARD(ctX, ctY) &
-        mkPair(cfX, cfY) : dom(bState) & bState(mkPair(cfX, cfY)) : {player} * TYPE &
-        IS_BLACK_SQUARE(ctX, ctY) & mkPair(ctX, ctY) /: dom(bState) &
-        (
-            // Regra de Captura do Peão
-            (bState(mkPair(cfX, cfY)) = (player |-> man) & 
-             absDiff(cfX, ctX) = 2 & absDiff(cfY, ctY) = 2 &
-             {capX, capY | capX: INTEGER & capY: INTEGER & IS_ON_BOARD(capX, capY) & IS_BLACK_SQUARE(capX, capY) & capX * 2 = cfX + ctX & capY * 2 = cfY + ctY} /\ dom(bState |> ({opponent(player)} * TYPE)) /= {}
-            )
-            or
-            // Regra de Captura da Dama
-            (bState(mkPair(cfX, cfY)) = (player |-> king) & 
-             absDiff(cfX, ctX) = absDiff(cfY, ctY) &
-             card(DIAGONAL_PATH(cfX, cfY, ctX, ctY) /\ dom(bState |> ({opponent(player)} * TYPE))) = 1 & // Exatamente 1 inimigo no caminho
-             DIAGONAL_PATH(cfX, cfY, ctX, ctY) /\ dom(bState |> ({player} * TYPE)) = {} // Nenhum "aliado" no caminho
-            )
-        )
-    };
-
-    // Checa se o jogador tem alguma jogada possível 
-    HAS_AVAILABLE_MOVES_ON(bState, player) == (NORMAL_MOVES(bState, player) \/ CAPTURE_MOVES(bState, player) /= {});
-    
-    // Checa se uma peça específica pode continuar capturando no novo estado do tabuleiro
-    HAS_CONTINUOUS_CAPTURE(bState, player, startX, startY) == 
-        ({ contX, contY | contX: INTEGER & contY: INTEGER & IS_ON_BOARD(contX, contY) & IS_BLACK_SQUARE(contX, contY) & startX |-> startY |-> contX |-> contY : CAPTURE_MOVES(bState, player) } /= {})
+DEFINITIONS "checkers_defs.def"
 
 SETS
     PLAYER = {white, black};
@@ -308,7 +247,7 @@ OPERATIONS
         END
     END;
     
-    currentStatus <-- checkStatus=
+    currentStatus <-- checkStatus =
     BEGIN
         currentStatus := gameStatus
     END;
