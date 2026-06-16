@@ -36,10 +36,9 @@ INVARIANT
     gameStatus : STATUS &
     hasCombo : BOOL &
     comboIndex : BOARD_INDEX &
-    lastMoveWas : MOVE &
     huffable : BOARD_INDEX --> BOOL &
 
-    /* Coerência entre dono e tipo da peça */
+    // Coerência entre dono e tipo da peça
     !ii.(ii : BOARD_INDEX =>
         (
             ((owner(ii) = noneOwner) <=> (kind(ii) = noneKind)) &
@@ -47,7 +46,7 @@ INVARIANT
         )
     ) &
 
-    /* Casas brancas nunca possuem peça */
+    // Casas brancas nunca possuem peça
     !ii.(ii : BOARD_INDEX =>
         (
             not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)))
@@ -56,31 +55,34 @@ INVARIANT
         )
     ) &
 
-    /* Se existe combo, a posição marcada precisa ter peça, que seja do jogador do turno */
+    // Se existe combo, a posição marcada precisa ter peça, que seja do jogador do turno
     (hasCombo = TRUE => owner(comboIndex) /= noneOwner & owner(comboIndex) = OWNER_OF_PLAYER(turn)) &
 
-    /* Ligação entre comboPiece abstrato e hasCombo/comboIndex concreto */
+    // Ligação entre comboPiece abstrato e hasCombo/comboIndex concreto
     (
         hasCombo = FALSE => comboPiece = {}
     ) &
     (
         hasCombo = TRUE =>
-            comboPiece = {mkPair(XCOORD(comboIndex), YCOORD(comboIndex))} 
+            (
+                comboPiece = {mkPair(XCOORD(comboIndex), YCOORD(comboIndex))} &
+                IS_BLACK_SQUARE(XCOORD(comboIndex), YCOORD(comboIndex))
+            )
     ) &
 
-    /* Ligação entre opponentCouldCaptureWith abstrato e huffable concreto */
+    // Ligação entre opponentCouldCaptureWith abstrato e huffable concreto
     opponentCouldCaptureWith =
         {xx, yy |
             xx : MIN_COORD..MAX_COORD &
             yy : MIN_COORD..MAX_COORD &
-            IS_BLACK_SQUARE(xx, yy)&
+            IS_BLACK_SQUARE(xx, yy) &
+            owner(INDEX(xx,yy)) = OWNER_OF_PLAYER(opponent(turn)) &
             huffable(INDEX(xx, yy)) = TRUE
         } &
 
     /* Ligação entre board abstrato e arrays concretos owner/kind */
     board =
         {coord, pp_ | // pp_ = player_piece
-            //(xx |-> yy) |-> (pp |-> tt) |
             coord : {xx, yy | 
                 xx : MIN_COORD..MAX_COORD &
                 yy : MIN_COORD..MAX_COORD &
