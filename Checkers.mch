@@ -18,10 +18,7 @@ CONSTANTS
     mkPair,
     absDiff,
     opponent,
-    turnToWon,
-    captureBoard,
-    drawBoard,
-    victoryBoard
+    turnToWon
     
 PROPERTIES
     MIN_COORD = 1 &
@@ -33,30 +30,8 @@ PROPERTIES
     mkPair = %(posX, posY) . (posX:INTEGER & posY:INTEGER | posX |-> posY) &
     absDiff = %(nn, mm) . (nn:INTEGER & mm:INTEGER | max({nn - mm, mm - nn})) &
     opponent = {white |-> black, black |-> white} &
-    turnToWon = {white |-> whiteWon, black |-> blackWon} &
+    turnToWon = {white |-> whiteWon, black |-> blackWon} 
 
-    captureBoard = { // Testes de captura e de sopro
-        (1 |-> 1) |-> (white |-> man),
-        (3 |-> 3) |-> (black |-> man),
-        (4 |-> 4) |-> (white |-> man),
-        (4 |-> 6) |-> (white |-> man),
-        (4 |-> 8) |-> (black |-> man),
-        (5 |-> 5) |-> (black |-> man),
-        (5 |-> 7) |-> (black |-> man),
-        (7 |-> 3) |-> (black |-> man),
-        (7 |-> 5) |-> (black |-> man),
-        (7 |-> 7) |-> (black |-> man)
-    } &
-    drawBoard = { // Teste empate (começando pelas brancas)
-        (2 |-> 2) |-> (black |-> man),
-        (3 |-> 3) |-> (white |-> man),
-        (4 |-> 4) |-> (black |-> man)
-    } &
-    victoryBoard = { // Testes de vitória
-        (4 |-> 4) |-> (black |-> man),
-        (5 |-> 5) |-> (white |-> man)
-    }
-    
 VARIABLES
     board,
     turn,
@@ -98,13 +73,9 @@ INVARIANT
     )
     
 INITIALISATION
-    CHOICE board:=
+    board:=
         (whiteInit * {(white |-> man)}) \/ 
         (blackInit * {(black |-> man)})
-        OR board := captureBoard
-        OR board := drawBoard
-        OR board := victoryBoard
-    END
     || turn::PLAYER // Permite que qualquer jogador comece o jogo
     || gameStatus := playing
     || comboPiece := {}
