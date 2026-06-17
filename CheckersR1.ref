@@ -65,7 +65,7 @@ INVARIANT
     (
         hasCombo = TRUE =>
             (
-                comboPiece = {mkPair(XCOORD(comboIndex), YCOORD(comboIndex))} &
+                comboPiece = {MK_PAIR(XCOORD(comboIndex), YCOORD(comboIndex))} &
                 IS_BLACK_SQUARE(XCOORD(comboIndex), YCOORD(comboIndex))
             )
     ) &
