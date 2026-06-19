@@ -6,31 +6,21 @@ SETS
     OWNER = {noneOwner, whiteOwner, blackOwner};
     KIND = {noneKind, manKind, kingKind}
 
-DEFINITIONS
+DEFINITIONS "checkers_defs.def"
 
-    BOARD_INDEX == 0..63;
+CONSTANTS
+    OWNER_OF_PLAYER,
+    PLAYER_OF_OWNER,
+    KIND_OF_TYPE,
+    TYPE_OF_KIND
 
-    IS_VALID_INDEX(ii) == (ii : BOARD_INDEX);
+PROPERTIES
+    OWNER_OF_PLAYER = {white |-> whiteOwner, black |-> blackOwner} &
+    PLAYER_OF_OWNER = {whiteOwner |-> white, blackOwner |-> black} &
+    KIND_OF_TYPE = {man |-> manKind, king |-> kingKind} &
+    TYPE_OF_KIND = {manKind |-> man, kingKind |-> king}
 
-    INDEX(xx, yy) == ((xx - 1) * 8 + (yy - 1));
-
-    XCOORD(ii) == ((ii / 8) + 1);
-
-    YCOORD(ii) == ((ii mod 8) + 1);
-
-    OWNER_OF_PLAYER(pp) ==
-        IF pp = white THEN whiteOwner ELSE blackOwner END;
-
-    PLAYER_OF_OWNER(oo) ==
-        IF oo = whiteOwner THEN white ELSE black END;
-
-    KIND_OF_TYPE(tt) ==
-        IF tt = man THEN manKind ELSE kingKind END;
-
-    TYPE_OF_KIND(kk) ==
-        IF kk = manKind THEN man ELSE king END
-
-VARIABLES
+CONCRETE_VARIABLES
     owner,
     kind,
     turn,
@@ -43,22 +33,20 @@ VARIABLES
 INVARIANT
     owner : BOARD_INDEX --> OWNER &
     kind : BOARD_INDEX --> KIND &
-    turn : PLAYER &
     gameStatus : STATUS &
     hasCombo : BOOL &
     comboIndex : BOARD_INDEX &
-    lastMoveWas : MOVE &
     huffable : BOARD_INDEX --> BOOL &
 
-    /* Coerência entre dono e tipo da peça */
+    // Coerência entre dono e tipo da peça
     !ii.(ii : BOARD_INDEX =>
         (
-            (owner(ii) = noneOwner <=> kind(ii) = noneKind) &
+            ((owner(ii) = noneOwner) <=> (kind(ii) = noneKind)) &
             (owner(ii) /= noneOwner => kind(ii) : {manKind, kingKind})
         )
     ) &
 
-    /* Casas brancas nunca possuem peça */
+    // Casas brancas nunca possuem peça
     !ii.(ii : BOARD_INDEX =>
         (
             not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)))
@@ -67,96 +55,73 @@ INVARIANT
         )
     ) &
 
-    /* Se existe combo, a posição marcada precisa ter peça */
-    (hasCombo = TRUE => owner(comboIndex) /= noneOwner) &
+    // Se existe combo, a posição marcada precisa ter peça, que seja do jogador do turno
+    (hasCombo = TRUE => owner(comboIndex) /= noneOwner & owner(comboIndex) = OWNER_OF_PLAYER(turn)) &
 
-    /* Ligação entre comboPiece abstrato e hasCombo/comboIndex concreto */
+    // Ligação entre comboPiece abstrato e hasCombo/comboIndex concreto
     (
         hasCombo = FALSE => comboPiece = {}
     ) &
     (
         hasCombo = TRUE =>
-            comboPiece = {mkPair(XCOORD(comboIndex), YCOORD(comboIndex))}
+            (
+                comboPiece = {MK_PAIR(XCOORD(comboIndex), YCOORD(comboIndex))} &
+                IS_BLACK_SQUARE(XCOORD(comboIndex), YCOORD(comboIndex))
+            )
     ) &
 
-    /* Ligação entre opponentCouldCaptureWith abstrato e huffable concreto */
+    // Ligação entre opponentCouldCaptureWith abstrato e huffable concreto
     opponentCouldCaptureWith =
         {xx, yy |
             xx : MIN_COORD..MAX_COORD &
             yy : MIN_COORD..MAX_COORD &
             IS_BLACK_SQUARE(xx, yy) &
+            owner(INDEX(xx,yy)) = OWNER_OF_PLAYER(opponent(turn)) &
             huffable(INDEX(xx, yy)) = TRUE
-        | mkPair(xx, yy)
         } &
 
     /* Ligação entre board abstrato e arrays concretos owner/kind */
     board =
-        {xx, yy, pp, tt |
-            xx : MIN_COORD..MAX_COORD &
-            yy : MIN_COORD..MAX_COORD &
-            IS_BLACK_SQUARE(xx, yy) &
-            pp : PLAYER &
-            tt : TYPE &
-            owner(INDEX(xx, yy)) /= noneOwner &
+        {coord, pp_ | // pp_ = player_piece
+            coord : {xx, yy | 
+                xx : MIN_COORD..MAX_COORD &
+                yy : MIN_COORD..MAX_COORD &
+                IS_BLACK_SQUARE(xx, yy)
+            } &
+            pp_ : {pp, tt |
+                pp : PLAYER &
+                tt : TYPE
+            } &
+            
+            
+            owner(INDEX(fst(BOARD_INTERVAL, BOARD_INTERVAL, coord), snd(BOARD_INTERVAL, BOARD_INTERVAL, coord))) /= noneOwner &
             (
-                (owner(INDEX(xx, yy)) = whiteOwner & pp = white) or
-                (owner(INDEX(xx, yy)) = blackOwner & pp = black)
+                (owner(INDEX(fst(BOARD_INTERVAL, BOARD_INTERVAL, coord), snd(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = whiteOwner & fst(PLAYER, TYPE, pp_) = white) or
+                (owner(INDEX(fst(BOARD_INTERVAL, BOARD_INTERVAL, coord), snd(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = blackOwner & fst(PLAYER, TYPE, pp_) = black)
             ) &
             (
-                (kind(INDEX(xx, yy)) = manKind & tt = man) or
-                (kind(INDEX(xx, yy)) = kingKind & tt = king)
+                (kind(INDEX(fst(BOARD_INTERVAL, BOARD_INTERVAL, coord), snd(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = manKind & snd(PLAYER, TYPE, pp_) = man) or
+                (kind(INDEX(fst(BOARD_INTERVAL, BOARD_INTERVAL, coord), snd(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = kingKind & snd(PLAYER, TYPE, pp_) = king)
             )
-        | mkPair(xx, yy) |-> (pp |-> tt)
         }
 
 INITIALISATION
 
     owner :=
-        %ii.(ii : BOARD_INDEX |
-            IF
-                IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) &
-                XCOORD(ii) : 1..3
-            THEN
-                whiteOwner
-            ELSIF
-                IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) &
-                XCOORD(ii) : 6..8
-            THEN
-                blackOwner
-            ELSE
-                noneOwner
-            END
-        )
-    ||
-
+        %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 1..3 | whiteOwner) 
+        \/
+        %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 6..8 | blackOwner)
+        \/
+        %ii.(ii : BOARD_INDEX & (not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))) or XCOORD(ii) : 4..5) | noneOwner);
     kind :=
-        %ii.(ii : BOARD_INDEX |
-            IF
-                IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) &
-                (XCOORD(ii) : 1..3 or XCOORD(ii) : 6..8)
-            THEN
-                manKind
-            ELSE
-                noneKind
-            END
-        )
-    ||
-
-    turn := white
-    ||
-
-    gameStatus := playing
-    ||
-
-    hasCombo := FALSE
-    ||
-
-    comboIndex := 0
-    ||
-
-    lastMoveWas := idle
-    ||
-
+        %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & (XCOORD(ii) : 1..3 or XCOORD(ii) : 6..8) | manKind)
+        \/
+        %ii.(ii : BOARD_INDEX & (not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))) or XCOORD(ii) : 4..5) | noneKind);
+    turn := white;
+    gameStatus := playing;
+    hasCombo := FALSE;
+    comboIndex := 0;
+    lastMoveWas := idle;
     huffable := BOARD_INDEX * {FALSE}
 
 OPERATIONS
@@ -275,6 +240,7 @@ OPERATIONS
             - remover origem;
             - remover capturada;
             - colocar peça no destino;
+            - verificar se o destino é a linha de promoção do jogador;
             - verificar se existe captura contínua;
             - se existir, manter hasCombo TRUE e comboIndex no destino;
             - caso contrário, limpar combo e passar o turno.
@@ -340,6 +306,36 @@ OPERATIONS
         ||
 
         lastMoveWas := huffed
+    END;
+
+    validMoves, moveCount <-- getPossibleMoves(fromX, fromY) =
+    BEGIN
+        skip
+    END;
+    
+    reset =
+    BEGIN
+        owner :=
+            %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 1..3 | whiteOwner) 
+            \/
+            %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 6..8 | blackOwner)
+            \/
+            %ii.(ii : BOARD_INDEX & (not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))) or XCOORD(ii) : 4..5) | noneOwner);
+        kind :=
+            %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & (XCOORD(ii) : 1..3 or XCOORD(ii) : 6..8) | manKind)
+            \/
+            %ii.(ii : BOARD_INDEX & XCOORD(ii) /: 1..3 & XCOORD(ii) /: 6..8 | noneKind);
+        turn := white;
+        gameStatus := playing;
+        hasCombo := FALSE;
+        comboIndex := 0;
+        lastMoveWas := idle;
+        huffable := BOARD_INDEX * {FALSE}
+    END;
+    
+    currentStatus <-- checkStatus =
+    BEGIN
+       currentStatus := gameStatus 
     END
 
 END
