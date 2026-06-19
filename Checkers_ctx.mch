@@ -5,8 +5,8 @@
 MACHINE Checkers_ctx
 
 SETS
-    PLAYER = {white, black}; // white is 0, black is 1
-    TYPE = {man, king};
+    PLAYER = {white, black, p_ee}; // white is 0, black is 1
+    TYPE = {man, king, t_ee};
     STATUS = {playing, whiteWon, blackWon, draw};
     MOVE = {idle, moved, captured, huffed}
 

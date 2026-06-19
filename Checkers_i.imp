@@ -8,7 +8,32 @@ SETS
     OWNER = {noneOwner, whiteOwner, blackOwner};
     KIND = {noneKind, manKind, kingKind}
     
-DEFINITIONS "checkers_defs.def"
+DEFINITIONS
+    MK_PAIR(fst, snd) == (fst |-> snd);
+
+    IS_BLACK_SQUARE(posX, posY) == ((posX+posY) mod 2 = 0);
+
+    PLAYABLE_BOARD == {posX, posY | posX:MIN_COORD..MAX_COORD & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
+
+    WHITE_INIT == {posX, posY | posX:MIN_COORD..3 & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
+
+    BLACK_INIT == {posX, posY | posX:6..MAX_COORD & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
+
+    BOARD_INDEX == (0..63);
+
+    IS_VALID_INDEX(ii) == (ii : BOARD_INDEX);
+
+    INDEX(xx, yy) == ((xx - 1) * 8 + (yy - 1));
+
+    XCOORD(ii) == ((ii / 8) + 1);
+
+    YCOORD(ii) == ((ii mod 8) + 1);
+
+    BOARD_INTERVAL == MIN_COORD..MAX_COORD;
+
+    FST(domain, codomain, tuple) == prj1(domain, codomain)(tuple);
+
+    SND(domain, codomain, tuple) == prj2(domain, codomain)(tuple)
     
 LOCAL_OPERATIONS
     
@@ -141,16 +166,19 @@ INVARIANT
     
 INITIALISATION
     
-    VAR ii IN
+    VAR ii, x_ii, y_ii, ii_mod_2 IN
         ii := 0;
+        x_ii := XCOORD(ii);
+        y_ii := YCOORD(ii);
+        ii_mod_2 := ii mod 2; // Quando usando o index pra identificar as casas escuras o valor que procuramos são os valores ímpares
         WHILE ii < 64 
         DO
-            IF IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))
+            IF ii_mod_2 = 1
             THEN 
-                IF XCOORD(ii) >= 1 & XCOORD(ii) <= 3 THEN
+                IF x_ii >= 1 & x_ii <= 3 THEN
                     owner(ii) := whiteOwner;
                     kind(ii) := manKind
-                ELSIF XCOORD(ii) >= 6 & XCOORD(ii) <= 8 THEN
+                ELSIF x_ii >= 6 & x_ii <= 8 THEN
                     owner(ii) := blackOwner;
                     kind(ii) := manKind
                 ELSE
@@ -160,13 +188,14 @@ INITIALISATION
             ELSE
                 owner(ii) := noneOwner;
                 kind(ii) := noneKind
-            END
+            END;
+            ii := ii + 1
         INVARIANT ii : NAT & ii <= 64 &
             !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : WHITE_INIT)
                 => (owner(INDEX(xx,yy)) = whiteOwner & kind(INDEX(xx,yy)) = manKind)) &
             !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : BLACK_INIT) 
                 => (owner(INDEX(xx,yy)) = blackOwner & kind(INDEX(xx,yy)) = manKind)) &
-            !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) /: WHITE_INIT & MK_PAIR(xx,yy) /: BLACK_INIT)
+            !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : PLAYABLE_BOARD & MK_PAIR(xx,yy) /: WHITE_INIT & MK_PAIR(xx,yy) /: BLACK_INIT)
                 => (owner(INDEX(xx,yy)) = noneOwner & kind(INDEX(xx,yy)) = noneKind))
         VARIANT 64 - ii
         END
@@ -269,24 +298,21 @@ OPERATIONS
         lastMoveWas := huffed
     END;
     
-    validMoves, moveCount <-- getPossibleMoves(fromX, fromY) =
-    BEGIN
-        // TO-DO
-        skip
-    END;
-    
     reset =
     BEGIN
-        VAR ii IN
+        VAR ii, x_ii, y_ii, ii_mod_2 IN
             ii := 0;
+            x_ii := XCOORD(ii);
+            y_ii := YCOORD(ii);
+            ii_mod_2 := ii mod 2; // Quando usando o index pra identificar as casas escuras o valor que procuramos são os valores ímpares
             WHILE ii < 64 
             DO
-                IF IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))
+                IF ii_mod_2 = 1
                 THEN 
-                    IF XCOORD(ii) >= 1 & XCOORD(ii) <= 3 THEN
+                    IF x_ii >= 1 & x_ii <= 3 THEN
                         owner(ii) := whiteOwner;
                         kind(ii) := manKind
-                    ELSIF XCOORD(ii) >= 6 & XCOORD(ii) <= 8 THEN
+                    ELSIF x_ii >= 6 & x_ii <= 8 THEN
                         owner(ii) := blackOwner;
                         kind(ii) := manKind
                     ELSE
@@ -296,13 +322,14 @@ OPERATIONS
                 ELSE
                     owner(ii) := noneOwner;
                     kind(ii) := noneKind
-                END
+                END;
+                ii := ii + 1
             INVARIANT ii : NAT & ii <= 64 &
                 !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : WHITE_INIT)
                     => (owner(INDEX(xx,yy)) = whiteOwner & kind(INDEX(xx,yy)) = manKind)) &
                 !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : BLACK_INIT) 
                     => (owner(INDEX(xx,yy)) = blackOwner & kind(INDEX(xx,yy)) = manKind)) &
-                !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) /: WHITE_INIT & MK_PAIR(xx,yy) /: BLACK_INIT)
+                !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : PLAYABLE_BOARD & MK_PAIR(xx,yy) /: WHITE_INIT & MK_PAIR(xx,yy) /: BLACK_INIT)
                     => (owner(INDEX(xx,yy)) = noneOwner & kind(INDEX(xx,yy)) = noneKind))
             VARIANT 64 - ii
             END
@@ -313,6 +340,11 @@ OPERATIONS
         comboIndex := 0;
         lastMoveWas := idle;
         huffable := BOARD_INDEX * {FALSE}
+    END;
+
+    validMoves, moveCount <-- getPossibleMoves(fromX, fromY) =
+    BEGIN
+        skip
     END;
     
     currentStatus <-- checkStatus =
@@ -327,6 +359,7 @@ OPERATIONS
         THEN oo := whiteOwner
         ELSIF pp = black
         THEN oo := blackOwner
+        ELSE oo := noneOwner
         END
     END;
     
@@ -336,6 +369,7 @@ OPERATIONS
         THEN pp := white
         ELSIF oo = blackOwner
         THEN pp := black
+        ELSE pp := p_ee
         END
     END;
     
@@ -345,6 +379,7 @@ OPERATIONS
         THEN kk := manKind
         ELSIF tt = king
         THEN kk := kingKind
+        ELSE kk := noneKind
         END
     END;
     
@@ -354,6 +389,7 @@ OPERATIONS
         THEN tt := man
         ELSIF kk = kingKind
         THEN tt := king
+        ELSE tt := t_ee
         END
     END
 END
