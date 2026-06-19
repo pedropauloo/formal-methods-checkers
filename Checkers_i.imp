@@ -1,37 +1,56 @@
 IMPLEMENTATION Checkers_i
-
+    
 REFINES Checkers
-
+    
+SEES Checkers_ctx
+    
 SETS
     OWNER = {noneOwner, whiteOwner, blackOwner};
     KIND = {noneKind, manKind, kingKind}
-
-DEFINITIONS "checkers_defs.def"
-
-CONSTANTS
-    ownerOfPlayer,
-    playerOfOwner,
-    kindOfType,
-    typeOfKind
-
-PROPERTIES
-    ownerOfPlayer = {white |-> whiteOwner, black |-> blackOwner, p_ee |-> noneOwner} &
-    playerOfOwner = {whiteOwner |-> white, blackOwner |-> black, noneOwner |-> p_ee} &
-    kindOfType = {man |-> manKind, king |-> kingKind, t_ee |-> noneKind} &
-    typeOfKind = {manKind |-> man, kingKind |-> king, noneKind |-> t_ee}
-
-VALUES
-    MIN_COORD = 1;
-    MAX_COORD = 8;
-    MAX_MOVES = 32;
-    opponent = %pp.(pp : PLAYER & pp = white | black) \/ %pp.(pp : PLAYER & pp = black | white) \/ %pp.(pp : PLAYER & pp = p_ee | p_ee);
-    turnToWon = %pp.(pp : PLAYER & pp = white | whiteWon) \/ %pp.(pp : PLAYER & pp = black | blackWon) \/ %pp.(pp : PLAYER & pp = p_ee | draw);
     
-    ownerOfPlayer = %pp.(pp : PLAYER & pp = white | whiteOwner) \/ %pp.(pp : PLAYER & pp = black | blackOwner) \/ %pp.(pp : PLAYER & pp = p_ee | noneOwner);
-    playerOfOwner = %oo.(oo : OWNER & oo = whiteOwner | white) \/ %oo.(oo : OWNER & oo = blackOwner | black) \/ %oo.(oo : OWNER & oo = noneOwner | p_ee);
-    kindOfType = %tt.(tt : TYPE & tt = man | manKind) \/ %tt.(tt : TYPE & tt = king | kingKind) \/ %tt.(tt : TYPE & tt = t_ee | noneKind);
-    typeOfKind = %kk.(kk : KIND & kk = manKind | man) \/ %kk.(kk : KIND & kk = kingKind | king) \/ %kk.(kk : KIND & kk = noneKind | t_ee)
-
+DEFINITIONS "checkers_defs.def"
+    
+LOCAL_OPERATIONS
+    
+    oo <-- ownerOfPlayer(pp) =
+    PRE pp : PLAYER
+    THEN IF pp = white
+        THEN oo := whiteOwner
+        ELSIF pp = black
+        THEN oo := blackOwner
+        END
+    END;
+    
+    pp <-- playerOfOwner(oo) =
+    PRE oo : OWNER
+    THEN
+        IF oo = whiteOwner
+        THEN pp := white
+        ELSIF oo = blackOwner
+        THEN pp := black
+        END
+    END;
+    
+    kk <-- kindOfType(tt) =
+    PRE tt : TYPE
+    THEN 
+        IF tt = man
+        THEN kk := manKind
+        ELSIF tt = king
+        THEN kk := kingKind
+        END
+    END;
+    
+    tt <-- typeOfKind(kk) =
+    PRE kk : KIND
+    THEN 
+        IF kk = manKind
+        THEN tt := man
+        ELSIF kk = kingKind
+        THEN tt := king
+        END
+    END
+    
 CONCRETE_VARIABLES
     owner,
     kind,
@@ -40,8 +59,11 @@ CONCRETE_VARIABLES
     hasCombo,
     comboIndex,
     lastMoveWas,
-    huffable
-
+    huffable,
+    getPlayer,
+    opponent,
+    turnToWon
+    
 INVARIANT
     owner : BOARD_INDEX --> OWNER &
     kind : BOARD_INDEX --> KIND &
@@ -49,7 +71,7 @@ INVARIANT
     hasCombo : BOOL &
     comboIndex : BOARD_INDEX &
     huffable : BOARD_INDEX --> BOOL &
-
+    
     // Coerência entre dono e tipo da peça
     !ii.(ii : BOARD_INDEX =>
         (
@@ -57,7 +79,7 @@ INVARIANT
             (owner(ii) /= noneOwner => kind(ii) : {manKind, kingKind})
         )
     ) &
-
+    
     // Casas brancas nunca possuem peça
     !ii.(ii : BOARD_INDEX =>
         (
@@ -66,155 +88,187 @@ INVARIANT
             owner(ii) = noneOwner & kind(ii) = noneKind
         )
     ) &
-
+    
     // Se existe combo, a posição marcada precisa ter peça, que seja do jogador do turno
-    (hasCombo = TRUE => owner(comboIndex) /= noneOwner & owner(comboIndex) = ownerOfPlayer(turn)) &
-
+    (hasCombo = TRUE => owner(comboIndex) /= noneOwner /* & owner(comboIndex) = ownerOfPlayer(turn) */) & // Acho que era interessante ter a propriedade comentada mas não sei como colocar usando local operations
+    
     // Ligação entre comboPiece abstrato e hasCombo/comboIndex concreto
     (
         hasCombo = FALSE => comboPiece = {}
     ) &
     (
         hasCombo = TRUE =>
-            (
-                comboPiece = {MK_PAIR(XCOORD(comboIndex), YCOORD(comboIndex))} &
-                IS_BLACK_SQUARE(XCOORD(comboIndex), YCOORD(comboIndex))
-            )
+        (
+            comboPiece = {MK_PAIR(XCOORD(comboIndex), YCOORD(comboIndex))} &
+            IS_BLACK_SQUARE(XCOORD(comboIndex), YCOORD(comboIndex))
+        )
     ) &
-
+    
     // Ligação entre opponentCouldCaptureWith abstrato e huffable concreto
     opponentCouldCaptureWith =
-        {xx, yy |
-            xx : MIN_COORD..MAX_COORD &
-            yy : MIN_COORD..MAX_COORD &
-            IS_BLACK_SQUARE(xx, yy) &
-            owner(INDEX(xx,yy)) = ownerOfPlayer(opponent(turn)) &
-            huffable(INDEX(xx, yy)) = TRUE
-        } &
-
+    {xx, yy |
+        xx : MIN_COORD..MAX_COORD &
+        yy : MIN_COORD..MAX_COORD &
+        IS_BLACK_SQUARE(xx, yy) &
+        //owner(INDEX(xx,yy)) = ownerOfPlayer(opponent(getPlayer(turn))) & // Acho que era interessante ter a propriedade comentada mas não sei como colocar usando local operations
+        huffable(INDEX(xx, yy)) = TRUE
+    } &
+    
     /* Ligação entre board abstrato e arrays concretos owner/kind */
     board =
-        {coord, pp_ | // pp_ = player_piece
-            coord : {xx, yy | 
-                xx : MIN_COORD..MAX_COORD &
-                yy : MIN_COORD..MAX_COORD &
-                IS_BLACK_SQUARE(xx, yy)
-            } &
-            pp_ : {pp, tt |
-                pp : PLAYER &
-                tt : TYPE
-            } &
-            
-            
-            owner(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) /= noneOwner &
-            (
-                (owner(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = whiteOwner & FST(PLAYER, TYPE, pp_) = white) or
-                (owner(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = blackOwner & FST(PLAYER, TYPE, pp_) = black)
-            ) &
-            (
-                (kind(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = manKind & SND(PLAYER, TYPE, pp_) = man) or
-                (kind(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = kingKind & SND(PLAYER, TYPE, pp_) = king)
-            )
-        }
-
+    {coord, pp_ | // pp_ = player_piece
+        coord : {xx, yy | 
+            xx : MIN_COORD..MAX_COORD &
+            yy : MIN_COORD..MAX_COORD &
+            IS_BLACK_SQUARE(xx, yy)
+        } &
+        pp_ : {pp, tt |
+            pp : PLAYER &
+            tt : TYPE
+        } &
+        
+        
+        owner(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) /= noneOwner &
+        (
+            (owner(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = whiteOwner & FST(PLAYER, TYPE, pp_) = white) or
+            (owner(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = blackOwner & FST(PLAYER, TYPE, pp_) = black)
+        ) &
+        (
+            (kind(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = manKind & SND(PLAYER, TYPE, pp_) = man) or
+            (kind(INDEX(FST(BOARD_INTERVAL, BOARD_INTERVAL, coord), SND(BOARD_INTERVAL, BOARD_INTERVAL, coord))) = kingKind & SND(PLAYER, TYPE, pp_) = king)
+        )
+    }
+    
 INITIALISATION
-
-    owner :=
-        %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 1..3 | whiteOwner) 
-        \/
-        %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 6..8 | blackOwner)
-        \/
-        %ii.(ii : BOARD_INDEX & (not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))) or XCOORD(ii) : 4..5) | noneOwner);
-    kind :=
-        %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & (XCOORD(ii) : 1..3 or XCOORD(ii) : 6..8) | manKind)
-        \/
-        %ii.(ii : BOARD_INDEX & (not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))) or XCOORD(ii) : 4..5) | noneKind);
+    
+    VAR ii IN
+        ii := 0;
+        WHILE ii < 64 
+        DO
+            IF IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))
+            THEN 
+                IF XCOORD(ii) >= 1 & XCOORD(ii) <= 3 THEN
+                    owner(ii) := whiteOwner;
+                    kind(ii) := manKind
+                ELSIF XCOORD(ii) >= 6 & XCOORD(ii) <= 8 THEN
+                    owner(ii) := blackOwner;
+                    kind(ii) := manKind
+                ELSE
+                    owner(ii) := noneOwner;
+                    kind(ii) := noneKind
+                END
+            ELSE
+                owner(ii) := noneOwner;
+                kind(ii) := noneKind
+            END
+        INVARIANT ii : NAT & ii <= 64 &
+            !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : WHITE_INIT)
+                => (owner(INDEX(xx,yy)) = whiteOwner & kind(INDEX(xx,yy)) = manKind)) &
+            !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : BLACK_INIT) 
+                => (owner(INDEX(xx,yy)) = blackOwner & kind(INDEX(xx,yy)) = manKind)) &
+            !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) /: WHITE_INIT & MK_PAIR(xx,yy) /: BLACK_INIT)
+                => (owner(INDEX(xx,yy)) = noneOwner & kind(INDEX(xx,yy)) = noneKind))
+        VARIANT 64 - ii
+        END
+    END;
     turn := white;
     gameStatus := playing;
     hasCombo := FALSE;
     comboIndex := 0;
     lastMoveWas := idle;
-    huffable := BOARD_INDEX * {FALSE}
-
+    huffable := BOARD_INDEX * {FALSE};
+    getPlayer(white) := 0; getPlayer(black) := 1;
+    opponent(0) := black; opponent(1) := white;
+    turnToWon(0) := whiteWon; turnToWon(1) := blackWon
+        
 OPERATIONS
-
+    
     move(fromX, fromY, toX, toY) =
     BEGIN
         /*
-            Aqui ainda falta refinar a regra completa de movimento.
-
-            Estrutura esperada:
-            - validar deslocamento; // ACREDITO QUE NÃO SEJA NECESSÁRIO POIS ESSA LÓGICA "ESTÁ" VALIDADA NA MÁQUINA ABSTRATA
-            - atualizar huffable;
+        Aqui ainda falta refinar a regra completa de movimento.
+        
+        Estrutura esperada:
+        - validar deslocamento; // ACREDITO QUE NÃO SEJA NECESSÁRIO POIS ESSA LÓGICA "ESTÁ" VALIDADA NA MÁQUINA ABSTRATA
+        - atualizar huffable;
         */
-
-        owner(INDEX(fromX, fromY)) := noneOwner;
-        owner(INDEX(toX, toY)) := ownerOfPlayer(turn);
-
-        IF
-            kind(INDEX(fromX, fromY)) = manKind &
-            (
-                (turn = white & toX = MAX_COORD) or
-                (turn = black & toX = MIN_COORD)
-            )
-        THEN
-            kind(INDEX(fromX, fromY)) := noneKind;
-            kind(INDEX(toX, toY)) := kingKind
-        ELSE
-            kind(INDEX(fromX, fromY)) := noneKind;
-            kind(INDEX(toX, toY)) := kind(INDEX(fromX, fromY))
+        
+        VAR oop IN
+            oop <-- ownerOfPlayer(turn);
+            owner(INDEX(fromX, fromY)) := noneOwner;
+            owner(INDEX(toX, toY)) := oop
         END;
-
+        
+        VAR calc_kind IN
+            calc_kind := kind(INDEX(fromX, fromY));
+            IF
+                (calc_kind = manKind) &
+                (
+                    (turn = white & toX = MAX_COORD) or
+                    (turn = black & toX = MIN_COORD)
+                )
+            THEN
+                kind(INDEX(fromX, fromY)) := noneKind;
+                kind(INDEX(toX, toY)) := kingKind
+            ELSE
+                kind(INDEX(fromX, fromY)) := noneKind;
+                kind(INDEX(toX, toY)) := kind(INDEX(fromX, fromY))
+            END
+        END;
+        
         lastMoveWas := moved;
         huffable := BOARD_INDEX * {FALSE}; // TO-DO
-        turn := opponent(turn)
+        turn := opponent(getPlayer(turn))
     END;
-
-
+    
+    
     capture(fromX, fromY, toX, toY, capX, capY) =
     BEGIN
         /*
-            Aqui ainda falta refinar a regra completa de captura.
-
-            Estrutura esperada:
-            - verificar se capX/capY é a peça capturada correta; // ACREDITO QUE NÃO SEJA NECESSÁRIO POIS ESSA LÓGICA "ESTÁ" VALIDADA NA MÁQUINA ABSTRATA
-            - verificar se o destino é a linha de promoção do jogador, APENAS CASO NÃO SEJA POSSÍVEL CONTINUAR O COMBO;
-            - verificar se existe captura contínua
-              se existir, manter hasCombo TRUE e comboIndex no destino;
-              caso contrário, limpar combo e passar o turno.
+        Aqui ainda falta refinar a regra completa de captura.
+        
+        Estrutura esperada:
+        - verificar se capX/capY é a peça capturada correta; // ACREDITO QUE NÃO SEJA NECESSÁRIO POIS ESSA LÓGICA "ESTÁ" VALIDADA NA MÁQUINA ABSTRATA
+        - verificar se o destino é a linha de promoção do jogador, APENAS CASO NÃO SEJA POSSÍVEL CONTINUAR O COMBO;
+        - verificar se existe captura contínua
+        se existir, manter hasCombo TRUE e comboIndex no destino;
+        caso contrário, limpar combo e passar o turno.
         */
-
+        
         // Fazer primeira a verificação de captura contínua // TO-DO
         hasCombo := FALSE;
         comboIndex := 0;
-
+        
         // Fluxo de captura única
-        owner(INDEX(fromX, fromY)) := noneOwner;
-        owner(INDEX(capX, capY)) := noneOwner;
-        owner(INDEX(toX, toY)) := ownerOfPlayer(turn);
-
+        VAR oop IN
+            oop <-- ownerOfPlayer(turn);
+            owner(INDEX(fromX, fromY)) := noneOwner;
+            owner(INDEX(capX, capY)) := noneOwner;
+            owner(INDEX(toX, toY)) := oop
+        END;
+        
         kind(INDEX(fromX, fromY)) := noneKind;
         kind(INDEX(capX, capY)) := noneKind;
         kind(INDEX(toX, toY)) := kind(INDEX(fromX, fromY));
-
+        
         lastMoveWas := captured;
         huffable := BOARD_INDEX * {FALSE};
         IF hasCombo = FALSE
-        THEN turn := opponent(turn) // Só trocar o turno quando o combo acabar
+        THEN turn := opponent(getPlayer(turn)) // Só trocar o turno quando o combo acabar
         END
     END;
-
-
+    
+    
     huff(xx, yy) =
     BEGIN
         owner(INDEX(xx, yy)) := noneOwner;
         kind(INDEX(xx, yy)) := noneKind;
-
+        
         huffable := BOARD_INDEX * {FALSE};
-
+        
         lastMoveWas := huffed
     END;
-
+    
     validMoves, moveCount <-- getPossibleMoves(fromX, fromY) =
     BEGIN
         // TO-DO
@@ -223,16 +277,36 @@ OPERATIONS
     
     reset =
     BEGIN
-        owner :=
-            %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 1..3 | whiteOwner) 
-            \/
-            %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & XCOORD(ii) : 6..8 | blackOwner)
-            \/
-            %ii.(ii : BOARD_INDEX & (not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))) or XCOORD(ii) : 4..5) | noneOwner);
-        kind :=
-            %ii.(ii : BOARD_INDEX & IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii)) & (XCOORD(ii) : 1..3 or XCOORD(ii) : 6..8) | manKind)
-            \/
-            %ii.(ii : BOARD_INDEX & XCOORD(ii) /: 1..3 & XCOORD(ii) /: 6..8 | noneKind);
+        VAR ii IN
+            ii := 0;
+            WHILE ii < 64 
+            DO
+                IF IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))
+                THEN 
+                    IF XCOORD(ii) >= 1 & XCOORD(ii) <= 3 THEN
+                        owner(ii) := whiteOwner;
+                        kind(ii) := manKind
+                    ELSIF XCOORD(ii) >= 6 & XCOORD(ii) <= 8 THEN
+                        owner(ii) := blackOwner;
+                        kind(ii) := manKind
+                    ELSE
+                        owner(ii) := noneOwner;
+                        kind(ii) := noneKind
+                    END
+                ELSE
+                    owner(ii) := noneOwner;
+                    kind(ii) := noneKind
+                END
+            INVARIANT ii : NAT & ii <= 64 &
+                !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : WHITE_INIT)
+                    => (owner(INDEX(xx,yy)) = whiteOwner & kind(INDEX(xx,yy)) = manKind)) &
+                !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) : BLACK_INIT) 
+                    => (owner(INDEX(xx,yy)) = blackOwner & kind(INDEX(xx,yy)) = manKind)) &
+                !(xx,yy).((xx : INT & yy : INT & MK_PAIR(xx,yy) /: WHITE_INIT & MK_PAIR(xx,yy) /: BLACK_INIT)
+                    => (owner(INDEX(xx,yy)) = noneOwner & kind(INDEX(xx,yy)) = noneKind))
+            VARIANT 64 - ii
+            END
+        END;
         turn := white;
         gameStatus := playing;
         hasCombo := FALSE;
@@ -243,7 +317,43 @@ OPERATIONS
     
     currentStatus <-- checkStatus =
     BEGIN
-       currentStatus := gameStatus 
+        currentStatus := gameStatus 
+    END;
+    
+    // LOCAL OPERATIONS abaixo
+    oo <-- ownerOfPlayer(pp) =
+    BEGIN 
+        IF pp = white
+        THEN oo := whiteOwner
+        ELSIF pp = black
+        THEN oo := blackOwner
+        END
+    END;
+    
+    pp <-- playerOfOwner(oo) =
+    BEGIN
+        IF oo = whiteOwner
+        THEN pp := white
+        ELSIF oo = blackOwner
+        THEN pp := black
+        END
+    END;
+    
+    kk <-- kindOfType(tt) =
+    BEGIN
+        IF tt = man
+        THEN kk := manKind
+        ELSIF tt = king
+        THEN kk := kingKind
+        END
+    END;
+    
+    tt <-- typeOfKind(kk) =
+    BEGIN
+        IF kk = manKind
+        THEN tt := man
+        ELSIF kk = kingKind
+        THEN tt := king
+        END
     END
-
 END
