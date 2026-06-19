@@ -2,25 +2,7 @@ MACHINE Checkers
     
 DEFINITIONS "checkers_defs.def"
 
-SETS
-    PLAYER = {white, black, p_ee};
-    TYPE = {man, king, t_ee};
-    STATUS = {playing, whiteWon, blackWon, draw};
-    MOVE = {idle, moved, captured, huffed}
-    
-CONSTANTS
-    MIN_COORD,
-    MAX_COORD,
-    MAX_MOVES,
-    opponent,
-    turnToWon
-    
-PROPERTIES
-    MIN_COORD = 1 &
-    MAX_COORD = 8 &
-    MAX_MOVES = 32 &
-    opponent = {white |-> black, black |-> white} &
-    turnToWon = {white |-> whiteWon, black |-> blackWon}
+SEES Checkers_ctx
 
 VARIABLES
     board,
@@ -28,7 +10,10 @@ VARIABLES
     gameStatus,
     comboPiece,
     lastMoveWas,
-    opponentCouldCaptureWith
+    opponentCouldCaptureWith,
+    getPlayer,
+    opponent,
+    turnToWon
     
 INVARIANT
     board : PLAYABLE_BOARD +-> (PLAYER * TYPE) &
@@ -40,12 +25,15 @@ INVARIANT
     lastMoveWas : MOVE &
     opponentCouldCaptureWith <: PLAYABLE_BOARD &
     opponentCouldCaptureWith : FIN(opponentCouldCaptureWith) &
+    getPlayer : PLAYER --> 0..1 &
+    opponent : 0..1 --> PLAYER &
+    turnToWon : 0..1 --> STATUS &
     
     // Uma peça jamais sairá do tabuleiro 
-    !(posX, posY).(posX: INTEGER & posY: INTEGER & MK_PAIR(posX, posY) : dom(board) => IS_ON_BOARD(posX, posY)) &
+    !(posX, posY).(posX: INT & posY: INT & MK_PAIR(posX, posY) : dom(board) => IS_ON_BOARD(posX, posY)) &
     
     // Uma peça jamais estará em uma casa branca
-    !(posX, posY).(posX: INTEGER & posY: INTEGER & MK_PAIR(posX, posY) : dom(board) => IS_BLACK_SQUARE(posX, posY)) &
+    !(posX, posY).(posX: INT & posY: INT & MK_PAIR(posX, posY) : dom(board) => IS_BLACK_SQUARE(posX, posY)) &
 
     // Talvez juntar as duas cláusulas acima seja mais otimizado?
 
@@ -64,19 +52,22 @@ INVARIANT
     
 INITIALISATION
     board:=
-        (WHITEINIT * {(white |-> man)}) \/ 
-        (BLACKINIT * {(black |-> man)})
+        (WHITE_INIT * {(white |-> man)}) \/ 
+        (BLACK_INIT * {(black |-> man)})
     || turn::PLAYER // Permite que qualquer jogador comece o jogo
     || gameStatus := playing
     || comboPiece := {}
     || lastMoveWas := idle
     || opponentCouldCaptureWith := {}
+    || getPlayer := %pp.(pp : PLAYER & pp = white | 0) \/ %pp.(pp : PLAYER & pp = black | 1)
+    || opponent := %nn.(nn : 0..1 & nn = 0 | black) \/ %nn.(nn : 0..1 & nn = 1 | white)
+    || turnToWon := %nn.(nn: 0..1 & nn = 0 | whiteWon) \/ %nn.(nn : 0..1 & nn = 1 | blackWon)
     
 OPERATIONS
     
     move(fromX, fromY, toX, toY) =
     PRE
-        fromX: INTEGER & fromY: INTEGER & toX: INTEGER & toY: INTEGER &
+        fromX: INT & fromY: INT & toX: INT & toY: INT &
         gameStatus = playing &
         comboPiece = {} & // Não pode fazer movimento normal no meio de um combo
         
@@ -90,19 +81,19 @@ OPERATIONS
         IF board(MK_PAIR(fromX, fromY)) = (turn |-> man) & ((turn = white & toX = MAX_COORD) or (turn = black & toX = MIN_COORD)) THEN
             LET nextBoard BE nextBoard = ({MK_PAIR(fromX, fromY)} <<| board) \/ {MK_PAIR(toX, toY) |-> (turn |-> king)} IN // Promoção
                 board := nextBoard ||
-                IF HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(turn)) THEN
-                    turn := opponent(turn)
+                IF HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(getPlayer(turn))) THEN
+                    turn := opponent(getPlayer(turn))
                 ELSE
-                    gameStatus := turnToWon(turn)
+                    gameStatus := turnToWon(getPlayer(turn))
                 END
             END
         ELSE
             LET nextBoard BE nextBoard = ({MK_PAIR(fromX, fromY)} <<| board) \/ {MK_PAIR(toX, toY) |-> board(MK_PAIR(fromX, fromY))} IN // Movimento normal
                 board := nextBoard ||
-                IF HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(turn)) THEN
-                    turn := opponent(turn)
+                IF HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(getPlayer(turn))) THEN
+                    turn := opponent(getPlayer(turn))
                 ELSE
-                    gameStatus := turnToWon(turn)
+                    gameStatus := turnToWon(getPlayer(turn))
                 END
             END
         END
@@ -117,7 +108,7 @@ OPERATIONS
     
     capture(fromX, fromY, toX, toY, capX, capY) =
     PRE
-        fromX: INTEGER & fromY: INTEGER & toX: INTEGER & toY: INTEGER & capX: INTEGER & capY: INTEGER & 
+        fromX: INT & fromY: INT & toX: INT & toY: INT & capX: INT & capY: INT & 
         gameStatus = playing &
         MK_PAIR(capX, capY) : dom(board) &
         
@@ -131,7 +122,7 @@ OPERATIONS
         (
             (board(MK_PAIR(fromX, fromY)) = (turn |-> man) & capX * 2 = fromX + toX & capY * 2 = fromY + toY) // Posição de captura é o ponto médio entre a origem e o destino
             or
-            (board(MK_PAIR(fromX, fromY)) = (turn |-> king) & MK_PAIR(capX, capY) : DIAGONAL_PATH(fromX, fromY, toX, toY) /\ dom(board |> ({opponent(turn)} * TYPE)))  // Captura está entre a origem e destino e a casa pertence ao oponente
+            (board(MK_PAIR(fromX, fromY)) = (turn |-> king) & MK_PAIR(capX, capY) : DIAGONAL_PATH(fromX, fromY, toX, toY) /\ dom(board |> ({opponent(getPlayer(turn))} * TYPE)))  // Captura está entre a origem e destino e a casa pertence ao oponente
         )
     THEN
         LET nextBoard BE nextBoard = ({MK_PAIR(fromX, fromY), MK_PAIR(capX, capY)} <<| board) \/ {MK_PAIR(toX, toY) |-> board(MK_PAIR(fromX, fromY))} IN
@@ -140,7 +131,7 @@ OPERATIONS
                 
                 // Nenhuma das opções do THEN acima devem finalizar o jogo, pois há peças pra participar do combo
                 SELECT board(MK_PAIR(fromX, fromY)) = (turn |-> man) & ((turn = white & toX = MAX_COORD) or (turn = black & toX = MIN_COORD)) THEN // Só é possível escolher parar o combo quando há uma promoção no meio
-                    turn := opponent(turn)
+                    turn := opponent(getPlayer(turn))
                     || comboPiece := {}
                     || board := ({MK_PAIR(toX, toY)} <<| nextBoard) \/ {MK_PAIR(toX, toY) |-> (turn |-> king)}
                 WHEN 1 = 1 THEN  // Sempre é possível continuar o combo
@@ -152,12 +143,12 @@ OPERATIONS
             ELSE
                 // As capturas que acontecem nessas condições podem finalizar o jogo
                 board := nextBoard
-                || turn := opponent(turn)  // Passa a vez e limpa a trava
+                || turn := opponent(getPlayer(turn))  // Passa a vez e limpa a trava
                 || comboPiece := {}
-                || IF card(nextBoard |> ({opponent(turn)} * TYPE)) = 0 THEN
-                       gameStatus := turnToWon(turn) // Perdeu por falta de peças
-                   ELSIF not(HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(turn))) THEN
-                       gameStatus := turnToWon(turn) // Perdeu por falta de movimentos
+                || IF card(nextBoard |> ({opponent(getPlayer(turn))} * TYPE)) = 0 THEN
+                       gameStatus := turnToWon(getPlayer(turn)) // Perdeu por falta de peças
+                   ELSIF not(HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(getPlayer(turn)))) THEN
+                       gameStatus := turnToWon(getPlayer(turn)) // Perdeu por falta de movimentos
                    END
             END
         END
@@ -168,19 +159,19 @@ OPERATIONS
     // Operação de sopro
     huff(xx, yy) =
     PRE
-        xx : INTEGER & yy : INTEGER &
+        xx : INT & yy : INT &
         gameStatus = playing &
         MK_PAIR(xx, yy) : dom(board) &
-        board(MK_PAIR(xx, yy)) : {opponent(turn)} * TYPE &
+        board(MK_PAIR(xx, yy)) : {opponent(getPlayer(turn))} * TYPE &
         MK_PAIR(xx, yy) : opponentCouldCaptureWith &
         lastMoveWas = moved // Só permitir pedir sopro quando o último movimento tiver sido um movimento
     THEN
         LET nextBoard BE nextBoard = {MK_PAIR(xx, yy)} <<| board IN
             board := nextBoard
-            || IF card(nextBoard |> ({opponent(turn)} * TYPE)) = 0 THEN
-                   gameStatus := turnToWon(turn) // Perdeu por falta de peças
-               ELSIF not(HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(turn))) THEN
-                   gameStatus := turnToWon(turn) // Perdeu por falta de movimentos
+            || IF card(nextBoard |> ({opponent(getPlayer(turn))} * TYPE)) = 0 THEN
+                   gameStatus := turnToWon(getPlayer(turn)) // Perdeu por falta de peças
+               ELSIF not(HAS_AVAILABLE_MOVES_ON(nextBoard, opponent(getPlayer(turn)))) THEN
+                   gameStatus := turnToWon(getPlayer(turn)) // Perdeu por falta de movimentos
                END
         END
         || lastMoveWas := huffed
@@ -189,14 +180,14 @@ OPERATIONS
     // Retorna TODAS as posições válidas de movimento para uma dada peça
     validMoves, moveCount <-- getPossibleMoves(fromX, fromY) =
     PRE
-        fromX: INTEGER & fromY: INTEGER & 
+        fromX: INT & fromY: INT & 
         IS_ON_BOARD(fromX, fromY) &
         MK_PAIR(fromX, fromY) : dom(board) & // Pertencer ao tabuleiro garante estar numa casa escura
         board(MK_PAIR(fromX, fromY)) : {turn} * TYPE
     THEN
         ANY moves WHERE
             moves = { destX, destY | 
-                destX: INTEGER & destY: INTEGER &
+                destX: INT & destY: INT &
                 fromX |-> fromY |-> destX |-> destY : NORMAL_MOVES(board, turn) \/ CAPTURE_MOVES(board, turn)
             } &
             moves <: PLAYABLE_BOARD &
@@ -215,8 +206,8 @@ OPERATIONS
     
     reset =
     BEGIN board := 
-        (WHITEINIT * {(white |-> man)}) \/ 
-        (BLACKINIT * {(black |-> man)})
+        (WHITE_INIT * {(white |-> man)}) \/ 
+        (BLACK_INIT * {(black |-> man)})
         || turn::PLAYER
         || gameStatus := playing
         || comboPiece := {}

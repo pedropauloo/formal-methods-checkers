@@ -46,13 +46,13 @@ DEFINITIONS
             // Regra de Captura do Peão
             (bState(MK_PAIR(cfX, cfY)) = (player |-> man) & 
              ABS_DIFF(cfX, ctX) = 2 & ABS_DIFF(cfY, ctY) = 2 &
-             {capX, capY | capX: INTEGER & capY: INTEGER & IS_ON_BOARD(capX, capY) & IS_BLACK_SQUARE(capX, capY) & capX * 2 = cfX + ctX & capY * 2 = cfY + ctY} /\ dom(bState |> ({opponent(player)} * TYPE)) /= {}
+             {capX, capY | capX: INTEGER & capY: INTEGER & IS_ON_BOARD(capX, capY) & IS_BLACK_SQUARE(capX, capY) & capX * 2 = cfX + ctX & capY * 2 = cfY + ctY} /\ dom(bState |> ({opponent(getPlayer(player))} * TYPE)) /= {}
             )
             or
             // Regra de Captura da Dama
             (bState(MK_PAIR(cfX, cfY)) = (player |-> king) & 
              ABS_DIFF(cfX, ctX) = ABS_DIFF(cfY, ctY) &
-             card(DIAGONAL_PATH(cfX, cfY, ctX, ctY) /\ dom(bState |> ({opponent(player)} * TYPE))) = 1 & // Exatamente 1 inimigo no caminho
+             card(DIAGONAL_PATH(cfX, cfY, ctX, ctY) /\ dom(bState |> ({opponent(getPlayer(player))} * TYPE))) = 1 & // Exatamente 1 inimigo no caminho
              DIAGONAL_PATH(cfX, cfY, ctX, ctY) /\ dom(bState |> ({player} * TYPE)) = {} // Nenhum "aliado" no caminho
             )
         )
@@ -67,9 +67,9 @@ DEFINITIONS
 
     PLAYABLE_BOARD == {posX, posY | posX:MIN_COORD..MAX_COORD & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
 
-    WHITEINIT == {posX, posY | posX:MIN_COORD..3 & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
+    WHITE_INIT == {posX, posY | posX:MIN_COORD..3 & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
 
-    BLACKINIT == {posX, posY | posX:6..MAX_COORD & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
+    BLACK_INIT == {posX, posY | posX:6..MAX_COORD & posY:MIN_COORD..MAX_COORD & IS_BLACK_SQUARE(posX, posY)};
 
     BOARD_INDEX == (0..63);
 
