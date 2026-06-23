@@ -1,4 +1,4 @@
-REFINEMENT CheckersR1
+IMPLEMENTATION Checkers_i
 
 REFINES Checkers
 
@@ -53,26 +53,22 @@ INVARIANT
     lastMoveWas : MOVE &
     huffable : BOARD_INDEX --> BOOL &
 
-    /* Casas brancas nunca possuem peça */
     !ii.(ii : BOARD_INDEX =>
         (
             not(IS_BLACK_SQUARE(XCOORD(ii), YCOORD(ii))) => cell(ii) = empty
         )
     ) &
 
-    /* Se existe combo, a posição marcada precisa ter peça */
     (hasCombo = TRUE => cell(comboIndex) /= empty) &
 
-    /* Ligação entre comboPiece abstrato e hasCombo/comboIndex concreto */
     (
         hasCombo = FALSE => comboPiece = {}
     ) &
+    
     (
-        hasCombo = TRUE =>
-            comboPiece = {MK_PAIR(XCOORD(comboIndex), YCOORD(comboIndex))}
+        hasCombo = TRUE => comboPiece = {MK_PAIR(XCOORD(comboIndex), YCOORD(comboIndex))}
     ) &
 
-    /* Ligação entre opponentCouldCaptureWith abstrato e huffable concreto */
     opponentCouldCaptureWith =
         {xx, yy |
             xx : MIN_COORD..MAX_COORD &
@@ -149,12 +145,10 @@ OPERATIONS
             ELSE
                 cell := cell <+ {fromIndex |-> empty, toIndex |-> movingCell}
             END
-        END
-        ||
-        turn := opponent(turn)
-        ||
-        lastMoveWas := moved
-        ||
+        END;
+
+        turn := opponent(turn);
+        lastMoveWas := moved;
         huffable := BOARD_INDEX * {FALSE}
     END;
 
@@ -171,25 +165,19 @@ OPERATIONS
                 capIndex |-> empty,
                 toIndex |-> movingCell
             }
-        END
-        ||
-        hasCombo := FALSE
-        ||
-        comboIndex := 0
-        ||
-        turn := opponent(turn)
-        ||
-        lastMoveWas := captured
-        ||
+        END;
+
+        hasCombo := FALSE;
+        comboIndex := 0;
+        turn := opponent(turn);
+        lastMoveWas := captured;
         huffable := BOARD_INDEX * {FALSE}
     END;
 
     huff(xx, yy) =
     BEGIN
-        cell := cell <+ {INDEX(xx, yy) |-> empty}
-        ||
-        huffable := BOARD_INDEX * {FALSE}
-        ||
+        cell := cell <+ {INDEX(xx, yy) |-> empty};
+        huffable := BOARD_INDEX * {FALSE};
         lastMoveWas := huffed
     END;
 
@@ -244,18 +232,12 @@ OPERATIONS
                 ELSE
                     empty
                 END
-            )
-        ||
-        turn := white
-        ||
-        gameStatus := playing
-        ||
-        hasCombo := FALSE
-        ||
-        comboIndex := 0
-        ||
-        lastMoveWas := idle
-        ||
+            );
+        turn := white;
+        gameStatus := playing;
+        hasCombo := FALSE;
+        comboIndex := 0;
+        lastMoveWas := idle;
         huffable := BOARD_INDEX * {FALSE}
     END
 
